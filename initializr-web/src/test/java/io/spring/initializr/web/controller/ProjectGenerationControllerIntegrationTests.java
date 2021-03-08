@@ -1,5 +1,5 @@
 /*
- * Copyright 2012-2019 the original author or authors.
+ * Copyright 2012-2020 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -65,6 +65,17 @@ class ProjectGenerationControllerIntegrationTests extends AbstractInitializrCont
 		assertThat(project).mavenBuild().hasDependenciesSize(2).hasDependency("org.acme", "foo", "1.3.5");
 	}
 
+	@Test
+	void tgzProjectWithLongFilenames() {
+		ResponseEntity<byte[]> entity = downloadArchive(
+				"/starter.tgz?name=spring-boot-service&artifactId=spring-boot-service"
+						+ "&groupId=com.spring.boot.service&baseDir=spring-boot-service");
+		assertArchiveResponseHeaders(entity, MediaType.valueOf("application/x-compress"), "spring-boot-service.tar.gz");
+		ProjectStructure project = tgzProjectAssert(entity.getBody());
+		assertThat(project).containsFiles(
+				"spring-boot-service/src/test/java/com/spring/boot/service/springbootservice/SpringBootServiceApplicationTests.java");
+	}
+
 	private void assertArchiveResponseHeaders(ResponseEntity<byte[]> entity, MediaType contentType, String fileName) {
 		assertThat(entity.getHeaders().getContentType()).isEqualTo(contentType);
 		assertThat(entity.getHeaders().getContentDisposition()).isNotNull();
@@ -74,7 +85,7 @@ class ProjectGenerationControllerIntegrationTests extends AbstractInitializrCont
 	@Test
 	void dependencyInRange() {
 		Dependency biz = Dependency.create("org.acme", "biz", "1.3.5", "runtime");
-		ProjectStructure project = downloadTgz("/starter.tgz?dependencies=org.acme:biz&bootVersion=2.2.1.RELEASE");
+		ProjectStructure project = downloadTgz("/starter.tgz?dependencies=org.acme:biz&bootVersion=2.5.1");
 		assertDefaultProject(project);
 		assertDoesNotHaveWebResources(project);
 		assertThat(project).mavenBuild().hasDependenciesSize(3).hasDependency(biz);

@@ -17,6 +17,7 @@
 package io.spring.initializr.generator.buildsystem.maven;
 
 import java.io.StringWriter;
+import java.util.Comparator;
 import java.util.function.Consumer;
 
 import io.spring.initializr.generator.buildsystem.BillOfMaterials;
@@ -421,6 +422,39 @@ class MavenBuildWriterTests {
 	}
 
 	@Test
+	void pomWithOrderedDependencies() {
+		MavenBuild build = new MavenBuild();
+		build.dependencies().add("beta", Dependency.withCoordinates("com.example", "beta"));
+		build.dependencies().add("alpha", Dependency.withCoordinates("com.example", "alpha"));
+		build.dependencies().add("web",
+				Dependency.withCoordinates("org.springframework.boot", "spring-boot-starter-web"));
+		build.dependencies().add("root", Dependency.withCoordinates("org.springframework.boot", "spring-boot-starter"));
+		String pom = writePom(new MavenBuildWriter(), build);
+		assertThat(pom).containsSubsequence("<artifactId>spring-boot-starter</artifactId>",
+				"<artifactId>spring-boot-starter-web</artifactId>", "<artifactId>alpha</artifactId>",
+				"<artifactId>beta</artifactId>");
+	}
+
+	@Test
+	void pomWithOrderedDependenciesAndCustomComparator() {
+		MavenBuild build = new MavenBuild();
+		build.dependencies().add("beta", Dependency.withCoordinates("com.example", "beta"));
+		build.dependencies().add("alpha", Dependency.withCoordinates("com.example", "alpha"));
+		build.dependencies().add("web",
+				Dependency.withCoordinates("org.springframework.boot", "spring-boot-starter-web"));
+		build.dependencies().add("root", Dependency.withCoordinates("org.springframework.boot", "spring-boot-starter"));
+		MavenBuildWriter writer = new MavenBuildWriter() {
+			@Override
+			protected Comparator<Dependency> getDependencyComparator() {
+				return Comparator.comparing(Dependency::getArtifactId);
+			}
+		};
+		String pom = writePom(writer, build);
+		assertThat(pom).containsSubsequence("<artifactId>alpha</artifactId>", "<artifactId>beta</artifactId>",
+				"<artifactId>spring-boot-starter</artifactId>", "<artifactId>spring-boot-starter-web</artifactId>");
+	}
+
+	@Test
 	void pomWithBom() {
 		MavenBuild build = new MavenBuild();
 		build.settings().coordinates("com.example.demo", "demo");
@@ -673,6 +707,21 @@ class MavenBuildWriterTests {
 	}
 
 	@Test
+	void pomWithNoDefaultGoal() {
+		MavenBuild build = new MavenBuild();
+		build.settings().coordinates("com.example.demo", "demo").build();
+		generatePom(build, (pom) -> assertThat(pom.nodeAtPath("/project/build/defaultGoal")).isNull());
+	}
+
+	@Test
+	void pomWithDefaultGoal() {
+		MavenBuild build = new MavenBuild();
+		build.settings().coordinates("com.example.demo", "demo").defaultGoal("clean package");
+		generatePom(build,
+				(pom) -> assertThat(pom).textAtPath("/project/build/defaultGoal").isEqualTo("clean package"));
+	}
+
+	@Test
 	void pomWithNoFinalName() {
 		MavenBuild build = new MavenBuild();
 		build.settings().coordinates("com.example.demo", "demo").build();
@@ -707,13 +756,13 @@ class MavenBuildWriterTests {
 	}
 
 	@Test
-	void powWithDistributionManagementEmpty() {
+	void pomWithDistributionManagementEmpty() {
 		MavenBuild build = new MavenBuild();
 		generatePom(build, (pom) -> assertThat(pom).nodeAtPath("/project/distributionManagement").isNull());
 	}
 
 	@Test
-	void powWithDistributionManagementDownloadUrl() {
+	void pomWithDistributionManagementDownloadUrl() {
 		MavenBuild build = new MavenBuild();
 		build.distributionManagement().downloadUrl("https://example.com/download");
 		generatePom(build, (pom) -> {
@@ -727,7 +776,7 @@ class MavenBuildWriterTests {
 	}
 
 	@Test
-	void powWithDistributionManagementRepository() {
+	void pomWithDistributionManagementRepository() {
 		MavenBuild build = new MavenBuild();
 		build.distributionManagement().repository((repository) -> repository.id("released-repo").name("released repo")
 				.url("https://upload.example.com/releases"));
@@ -747,7 +796,7 @@ class MavenBuildWriterTests {
 	}
 
 	@Test
-	void powWithDistributionManagementSnapshotRepository() {
+	void pomWithDistributionManagementSnapshotRepository() {
 		MavenBuild build = new MavenBuild();
 		build.distributionManagement().snapshotRepository((repository) -> repository.id("snapshot-repo")
 				.name("snapshot repo").url("scp://upload.example.com/snapshots").layout("legacy").uniqueVersion(true));
@@ -767,7 +816,7 @@ class MavenBuildWriterTests {
 	}
 
 	@Test
-	void powWithDistributionManagementSite() {
+	void pomWithDistributionManagementSite() {
 		MavenBuild build = new MavenBuild();
 		build.distributionManagement().site((site) -> site.id("website").name("web site"))
 				.site((site) -> site.url("scp://www.example.com/www/docs/project"));
@@ -785,7 +834,7 @@ class MavenBuildWriterTests {
 	}
 
 	@Test
-	void powWithDistributionManagementRelocation() {
+	void pomWithDistributionManagementRelocation() {
 		MavenBuild build = new MavenBuild();
 		build.distributionManagement().relocation((relocation) -> relocation.groupId("com.example.new")
 				.artifactId("project").version("1.0.0").message("moved"));
@@ -802,11 +851,202 @@ class MavenBuildWriterTests {
 		});
 	}
 
+	@Test
+	void pomWithReservedCharacters() {
+		MavenBuild build = new MavenBuild();
+		build.settings().coordinates("com.example.demo", "demo").name("<demo project>")
+				.description("A \"demo\" project for 'developers' & 'testers'");
+		String pom = writePom(new MavenBuildWriter(), build);
+		assertThat(pom).contains("<name>&lt;demo project&gt;</name>").contains(
+				"<description>A &quot;demo&quot; project for &apos;developers&apos; &amp; &apos;testers&apos;</description>");
+	}
+
+	@Test
+	void pomWithNoProfile() {
+		MavenBuild build = new MavenBuild();
+		build.settings().coordinates("com.example.demo", "demo");
+		generatePom(build, (pom) -> assertThat(pom).textAtPath("/project/profiles/").isNullOrEmpty());
+	}
+
+	@Test
+	void powWithEmptyProfile() {
+		MavenBuild build = new MavenBuild();
+		build.profiles().id("profile1");
+		generatePom(build, (pom) -> {
+			NodeAssert profile = pom.nodeAtPath("/project/profiles/profile");
+			assertThat(profile).textAtPath("id").isEqualTo("profile1");
+			assertThat(profile).nodeAtPath("activation").isNull();
+			assertThat(profile).nodeAtPath("build").isNull();
+			assertThat(profile).nodeAtPath("repositories").isNull();
+			assertThat(profile).nodeAtPath("pluginRepositories").isNull();
+			assertThat(profile).nodeAtPath("dependencies").isNull();
+			assertThat(profile).nodeAtPath("dependencyManagement").isNull();
+			assertThat(profile).nodeAtPath("distributionManagement").isNull();
+		});
+	}
+
+	@Test
+	void powWithProfileActivationActiveByDefaultAndJdk() {
+		MavenBuild build = new MavenBuild();
+		build.profiles().id("profile1").activation().activeByDefault(true).jdk("11");
+		generatePom(build, (pom) -> {
+			NodeAssert profile = pom.nodeAtPath("/project/profiles/profile");
+			assertThat(profile).textAtPath("id").isEqualTo("profile1");
+			assertThat(profile).textAtPath("activation/activeByDefault").isEqualTo("true");
+			assertThat(profile).textAtPath("activation/jdk").isEqualTo("11");
+			assertThat(profile).nodeAtPath("activation/os").isNull();
+			assertThat(profile).nodeAtPath("activation/property").isNull();
+			assertThat(profile).nodeAtPath("activation/file").isNull();
+		});
+	}
+
+	@Test
+	void powWithProfileActivationOs() {
+		MavenBuild build = new MavenBuild();
+		build.profiles().id("profile1").activation().os("linux", "intel", "x68", "1.0");
+		generatePom(build, (pom) -> {
+			NodeAssert profile = pom.nodeAtPath("/project/profiles/profile");
+			assertThat(profile).textAtPath("id").isEqualTo("profile1");
+			assertThat(profile).nodeAtPath("activation/jdk").isNull();
+			assertThat(profile).textAtPath("activation/os/name").isEqualTo("linux");
+			assertThat(profile).textAtPath("activation/os/family").isEqualTo("intel");
+			assertThat(profile).textAtPath("activation/os/arch").isEqualTo("x68");
+			assertThat(profile).textAtPath("activation/os/version").isEqualTo("1.0");
+			assertThat(profile).nodeAtPath("activation/property").isNull();
+			assertThat(profile).nodeAtPath("activation/file").isNull();
+		});
+	}
+
+	@Test
+	void powWithProfileActivationProperty() {
+		MavenBuild build = new MavenBuild();
+		build.profiles().id("profile1").activation().property("name1", "value1");
+		generatePom(build, (pom) -> {
+			NodeAssert profile = pom.nodeAtPath("/project/profiles/profile");
+			assertThat(profile).textAtPath("id").isEqualTo("profile1");
+			assertThat(profile).nodeAtPath("activation/jdk").isNull();
+			assertThat(profile).nodeAtPath("activation/os").isNull();
+			assertThat(profile).textAtPath("activation/property/name").isEqualTo("name1");
+			assertThat(profile).textAtPath("activation/property/value").isEqualTo("value1");
+			assertThat(profile).nodeAtPath("activation/file").isNull();
+		});
+	}
+
+	@Test
+	void powWithProfileActivationFileExists() {
+		MavenBuild build = new MavenBuild();
+		build.profiles().id("profile1").activation().fileExists("test.txt");
+		generatePom(build, (pom) -> {
+			NodeAssert profile = pom.nodeAtPath("/project/profiles/profile");
+			assertThat(profile).textAtPath("id").isEqualTo("profile1");
+			assertThat(profile).nodeAtPath("activation/jdk").isNull();
+			assertThat(profile).nodeAtPath("activation/os").isNull();
+			assertThat(profile).nodeAtPath("activation/property").isNull();
+			assertThat(profile).textAtPath("activation/file/exists").isEqualTo("test.txt");
+			assertThat(profile).nodeAtPath("activation/file/missing").isNull();
+		});
+	}
+
+	@Test
+	void powWithProfileActivationFileMissing() {
+		MavenBuild build = new MavenBuild();
+		build.profiles().id("profile1").activation().fileMissing("test.txt");
+		generatePom(build, (pom) -> {
+			NodeAssert profile = pom.nodeAtPath("/project/profiles/profile");
+			assertThat(profile).textAtPath("id").isEqualTo("profile1");
+			assertThat(profile).nodeAtPath("activation/jdk").isNull();
+			assertThat(profile).nodeAtPath("activation/os").isNull();
+			assertThat(profile).nodeAtPath("activation/property").isNull();
+			assertThat(profile).nodeAtPath("activation/file/exists").isNull();
+			assertThat(profile).textAtPath("activation/file/missing").isEqualTo("test.txt");
+		});
+	}
+
+	@Test
+	void powWithProfileSettings() {
+		MavenBuild build = new MavenBuild();
+		build.profiles().id("profile1").settings().defaultGoal("compile").finalName("app");
+		generatePom(build, (pom) -> {
+			NodeAssert profile = pom.nodeAtPath("/project/profiles/profile");
+			assertThat(profile).textAtPath("id").isEqualTo("profile1");
+			assertThat(profile).textAtPath("build/defaultGoal").isEqualTo("compile");
+			assertThat(profile).textAtPath("build/finalName").isEqualTo("app");
+		});
+	}
+
+	@Test
+	void pomWithProfileResources() {
+		MavenBuild build = new MavenBuild();
+		build.profiles().id("profile1").resources().add("src/main/custom",
+				(resource) -> resource.includes("**/*.properties"));
+		generatePom(build, (pom) -> {
+			NodeAssert profile = pom.nodeAtPath("/project/profiles/profile");
+			assertThat(profile).textAtPath("id").isEqualTo("profile1");
+			assertThat(profile).textAtPath("build/resources/resource/directory").isEqualTo("src/main/custom");
+			assertThat(profile).textAtPath("build/resources/resource/targetPath").isNullOrEmpty();
+			assertThat(profile).textAtPath("build/resources/resource/filtering").isNullOrEmpty();
+			assertThat(profile).textAtPath("build/resources/resource/includes/include").isEqualTo("**/*.properties");
+			assertThat(profile).textAtPath("build/resources/resource/excludes").isNullOrEmpty();
+			assertThat(profile).textAtPath("build/testResources").isNullOrEmpty();
+		});
+	}
+
+	@Test
+	void pomWithProfileTestResources() {
+		MavenBuild build = new MavenBuild();
+		build.profiles().id("profile1").testResources().add("src/test/custom",
+				(resource) -> resource.excludes("**/*.gen").filtering(true).targetPath("test"));
+		generatePom(build, (pom) -> {
+			NodeAssert profile = pom.nodeAtPath("/project/profiles/profile");
+			assertThat(profile).textAtPath("id").isEqualTo("profile1");
+			assertThat(profile).textAtPath("build/resources").isNullOrEmpty();
+			assertThat(profile).textAtPath("build/testResources/testResource/directory").isEqualTo("src/test/custom");
+			assertThat(profile).textAtPath("build/testResources/testResource/targetPath").isEqualTo("test");
+			assertThat(profile).textAtPath("build/testResources/testResource/filtering").isEqualTo("true");
+			assertThat(profile).textAtPath("build/testResources/testResource/includes").isNullOrEmpty();
+			assertThat(profile).textAtPath("build/testResources/testResource/excludes/exclude").isEqualTo("**/*.gen");
+		});
+	}
+
+	@Test
+	void pomWithProfilePlugin() {
+		MavenBuild build = new MavenBuild();
+		build.profiles().id("profile1").plugins().add("org.springframework.boot", "spring-boot-maven-plugin");
+		generatePom(build, (pom) -> {
+			NodeAssert profile = pom.nodeAtPath("/project/profiles/profile");
+			assertThat(profile).textAtPath("id").isEqualTo("profile1");
+			NodeAssert plugin = profile.nodeAtPath("build/plugins/plugin");
+			assertThat(plugin).textAtPath("groupId").isEqualTo("org.springframework.boot");
+			assertThat(plugin).textAtPath("artifactId").isEqualTo("spring-boot-maven-plugin");
+			assertThat(plugin).textAtPath("version").isNullOrEmpty();
+			assertThat(plugin).textAtPath("extensions").isNullOrEmpty();
+		});
+	}
+
+	@Test
+	void pomWithProfileDistributionManagement() {
+		MavenBuild build = new MavenBuild();
+		build.profiles().id("profile1").distributionManagement().downloadUrl("https://example.com/download");
+		generatePom(build, (pom) -> {
+			NodeAssert profile = pom.nodeAtPath("/project/profiles/profile");
+			assertThat(profile).textAtPath("id").isEqualTo("profile1");
+			NodeAssert distributionManagement = profile.nodeAtPath("distributionManagement");
+			assertThat(distributionManagement).textAtPath("downloadUrl").isEqualTo("https://example.com/download");
+			assertThat(distributionManagement).nodeAtPath("repository").isNull();
+			assertThat(distributionManagement).nodeAtPath("snapshotRepository").isNull();
+			assertThat(distributionManagement).nodeAtPath("site").isNull();
+			assertThat(distributionManagement).nodeAtPath("relocation").isNull();
+		});
+	}
+
 	private void generatePom(MavenBuild mavenBuild, Consumer<NodeAssert> consumer) {
-		MavenBuildWriter writer = new MavenBuildWriter();
+		consumer.accept(new NodeAssert(writePom(new MavenBuildWriter(), mavenBuild)));
+	}
+
+	private String writePom(MavenBuildWriter writer, MavenBuild mavenBuild) {
 		StringWriter out = new StringWriter();
 		writer.writeTo(new IndentingWriter(out), mavenBuild);
-		consumer.accept(new NodeAssert(out.toString()));
+		return out.toString();
 	}
 
 }

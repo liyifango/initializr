@@ -1,5 +1,5 @@
 /*
- * Copyright 2012-2019 the original author or authors.
+ * Copyright 2012-2021 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -19,6 +19,7 @@ package io.spring.initializr.generator.test.buildsystem.maven;
 import java.net.MalformedURLException;
 import java.net.URL;
 import java.nio.file.Path;
+import java.util.function.Predicate;
 
 import io.spring.initializr.generator.test.io.AbstractTextAssert;
 import io.spring.initializr.generator.test.io.NodeAssert;
@@ -28,8 +29,8 @@ import io.spring.initializr.metadata.Dependency;
 import io.spring.initializr.metadata.Repository;
 import org.assertj.core.api.BooleanAssert;
 import org.assertj.core.api.Condition;
+import org.assertj.core.api.ObjectAssert;
 import org.assertj.core.api.StringAssert;
-import org.assertj.core.api.UrlAssert;
 import org.w3c.dom.DOMException;
 import org.w3c.dom.Element;
 import org.w3c.dom.Node;
@@ -193,13 +194,19 @@ public class MavenBuildAssert extends AbstractTextAssert<MavenBuildAssert> {
 			if (dependency.getGroupId().equals(actual.getGroupId())
 					&& dependency.getArtifactId().equals(actual.getArtifactId())) {
 				if (dependency.getVersion() != null) {
-					new StringAssert(actual.getVersion()).isEqualTo(dependency.getVersion());
+					if (!dependency.getVersion().equals(actual.getVersion())) {
+						return false;
+					}
 				}
 				if (dependency.getScope() != null) {
-					new StringAssert(actual.getScope()).isEqualTo(dependency.getScope());
+					if (!dependency.getScope().equals(actual.getScope())) {
+						return false;
+					}
 				}
 				if (dependency.getType() != null) {
-					new StringAssert(actual.getType()).isEqualTo(dependency.getType());
+					if (!dependency.getType().equals(actual.getType())) {
+						return false;
+					}
 				}
 				return true;
 			}
@@ -251,6 +258,20 @@ public class MavenBuildAssert extends AbstractTextAssert<MavenBuildAssert> {
 	}
 
 	/**
+	 * Assert that {@code pom.xml} does not define the specified bom.
+	 * @param groupId the groupId of the bom
+	 * @param artifactId the artifactId of the bom
+	 * @return {@code this} assertion object
+	 */
+	public MavenBuildAssert doesNotHaveBom(String groupId, String artifactId) {
+		this.pom.nodesAtPath("/project/dependencyManagement/dependencies/dependency").noneMatch((candidate) -> {
+			BillOfMaterials actual = toBom(candidate);
+			return groupId.equals(actual.getGroupId()) && artifactId.equals(actual.getArtifactId());
+		});
+		return this;
+	}
+
+	/**
 	 * Assert {@code pom.xml} defines the specified number of repositories.
 	 * @param size the number of repositories
 	 * @return {@code this} assertion object
@@ -277,12 +298,8 @@ public class MavenBuildAssert extends AbstractTextAssert<MavenBuildAssert> {
 					new StringAssert(repository.getName()).isEqualTo(name);
 				}
 				if (url != null) {
-					try {
-						new UrlAssert(repository.getUrl()).isEqualTo(new URL(url));
-					}
-					catch (MalformedURLException ex) {
-						throw new IllegalArgumentException("Cannot parse URL", ex);
-					}
+					new ObjectAssert<>(repository.getUrl()).describedAs("URL of repository " + id).isNotNull();
+					new StringAssert(repository.getUrl().toExternalForm()).isEqualTo(url);
 				}
 				if (snapshotsEnabled) {
 					new BooleanAssert(repository.isSnapshotsEnabled()).isEqualTo(snapshotsEnabled);
@@ -291,6 +308,27 @@ public class MavenBuildAssert extends AbstractTextAssert<MavenBuildAssert> {
 			}
 			return false;
 		}, "matching repository"));
+		return this;
+	}
+
+	/**
+	 * Assert {@code pom.xml} defines a profile with the specified {@code id}.
+	 * @param id the id of the profile
+	 * @return {@code this} assertion object
+	 */
+	public MavenBuildAssert hasProfile(String id) {
+		this.pom.nodesAtPath("/project/profiles/profile").areExactly(1,
+				new Condition<>(profile(id), "matching profile"));
+		return this;
+	}
+
+	/**
+	 * Assert {@code pom.xml} does not define a profile with the specified {@code id}.
+	 * @param id the id of the profile
+	 * @return {@code this} assertion object
+	 */
+	public MavenBuildAssert doesNotHaveProfile(String id) {
+		this.pom.nodesAtPath("/project/profiles/profile").noneMatch(profile(id));
 		return this;
 	}
 
@@ -403,6 +441,13 @@ public class MavenBuildAssert extends AbstractTextAssert<MavenBuildAssert> {
 			}
 		}
 		return repository;
+	}
+
+	private static Predicate<? super Node> profile(String id) {
+		return (candidate) -> {
+			String actualId = ((Element) candidate).getElementsByTagName("id").item(0).getTextContent();
+			return (actualId.equals(id));
+		};
 	}
 
 }

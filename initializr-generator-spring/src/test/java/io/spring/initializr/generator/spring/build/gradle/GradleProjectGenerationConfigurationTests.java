@@ -1,5 +1,5 @@
 /*
- * Copyright 2012-2020 the original author or authors.
+ * Copyright 2012-2021 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -65,8 +65,7 @@ class GradleProjectGenerationConfigurationTests {
 	}
 
 	static Stream<Arguments> supportedPlatformVersions() {
-		return Stream.of(Arguments.arguments("1.5.17.RELEASE"), Arguments.arguments("2.1.3.RELEASE"),
-				Arguments.arguments("2.2.3.RELEASE"));
+		return Stream.of(Arguments.arguments("2.1.3.RELEASE"), Arguments.arguments("2.2.3.RELEASE"));
 	}
 
 	@ParameterizedTest(name = "Spring Boot {0}")
@@ -84,8 +83,8 @@ class GradleProjectGenerationConfigurationTests {
 	}
 
 	static Stream<Arguments> gradleWrapperParameters() {
-		return Stream.of(Arguments.arguments("1.5.17.RELEASE", "3.5.1"), Arguments.arguments("2.0.6.RELEASE", "4.10.3"),
-				Arguments.arguments("2.1.3.RELEASE", "5.6.4"), Arguments.arguments("2.2.3.RELEASE", "6.2.2"));
+		return Stream.of(Arguments.arguments("2.0.6.RELEASE", "4.10.3"), Arguments.arguments("2.1.3.RELEASE", "5.6.4"),
+				Arguments.arguments("2.2.3.RELEASE", "6.8.3"));
 	}
 
 	@ParameterizedTest(name = "Spring Boot {0}")
@@ -181,9 +180,26 @@ class GradleProjectGenerationConfigurationTests {
 		assertThat(project).textFile("build.gradle").doesNotContain("exclude group");
 	}
 
+	@Test
+	void testStarterDoesNotExcludeVintageEngineWith24Snapshot() {
+		MutableProjectDescription description = new MutableProjectDescription();
+		description.setPlatformVersion(Version.parse("2.4.0-SNAPSHOT"));
+		description.setLanguage(new JavaLanguage());
+		ProjectStructure project = this.projectTester.generate(description);
+		assertThat(project).textFile("build.gradle").doesNotContain("exclude group");
+	}
+
+	@Test
+	void testStarterDoesNotExcludeVintageEngineWith24Milestone() {
+		MutableProjectDescription description = new MutableProjectDescription();
+		description.setPlatformVersion(Version.parse("2.4.0-M1"));
+		description.setLanguage(new JavaLanguage());
+		ProjectStructure project = this.projectTester.generate(description);
+		assertThat(project).textFile("build.gradle").doesNotContain("exclude group");
+	}
+
 	static Stream<Arguments> annotationProcessorScopeBuildParameters() {
-		return Stream.of(Arguments.arguments("1.5.17.RELEASE", false), Arguments.arguments("2.0.6.RELEASE", true),
-				Arguments.arguments("2.1.3.RELEASE", true));
+		return Stream.of(Arguments.arguments("2.0.6.RELEASE", true), Arguments.arguments("2.1.3.RELEASE", true));
 	}
 
 	@ParameterizedTest(name = "Spring Boot {0}")

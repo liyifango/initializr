@@ -1,5 +1,5 @@
 /*
- * Copyright 2012-2019 the original author or authors.
+ * Copyright 2012-2020 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -13,6 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+
 package io.spring.initializr.generator.spring.code;
 
 import io.spring.initializr.generator.language.CompilationUnit;
@@ -50,8 +51,8 @@ class SourceCodeProjectGenerationConfigurationTests {
 			return type;
 		});
 		assertThat(declaration.getAnnotations()).hasSize(1);
-		assertThat(declaration.getAnnotations())
-				.hasOnlyOneElementSatisfying((annotation) -> assertThat(annotation.getName())
+		assertThat(declaration.getAnnotations()).singleElement()
+				.satisfies((annotation) -> assertThat(annotation.getName())
 						.isEqualTo("org.springframework.boot.autoconfigure.SpringBootApplication"));
 	}
 
@@ -84,11 +85,6 @@ class SourceCodeProjectGenerationConfigurationTests {
 			bean.customize(type);
 			return type;
 		});
-	}
-
-	@Test
-	void springBoot15WarServletInitializerContributor() {
-		runWarTest("1.5.0", "org.springframework.boot.web.support.SpringBootServletInitializer");
 	}
 
 	@Test

@@ -250,6 +250,8 @@ public class Dependency extends MetadataElement implements Describable {
 				dependency.artifactId = (mapping.artifactId != null) ? mapping.artifactId : this.artifactId;
 				dependency.version = (mapping.version != null) ? mapping.version : this.version;
 				dependency.starter = (mapping.starter != null) ? mapping.starter : this.starter;
+				dependency.bom = (mapping.bom != null) ? mapping.bom : this.bom;
+				dependency.repository = (mapping.repository != null) ? mapping.repository : this.repository;
 				dependency.versionRequirement = mapping.range.toString();
 				dependency.mappings = null;
 				return dependency;
@@ -531,6 +533,18 @@ public class Dependency extends MetadataElement implements Describable {
 		 */
 		private Boolean starter;
 
+		/**
+		 * The extra Bill of Materials to use for this mapping or {@code null} to use the
+		 * default.
+		 */
+		private String bom;
+
+		/**
+		 * The extra repository to use for this mapping or {@code null} to use the
+		 * default.
+		 */
+		private String repository;
+
 		@JsonIgnore
 		private VersionRange range;
 
@@ -566,6 +580,22 @@ public class Dependency extends MetadataElement implements Describable {
 			this.starter = starter;
 		}
 
+		public String getBom() {
+			return this.bom;
+		}
+
+		public void setBom(String bom) {
+			this.bom = bom;
+		}
+
+		public String getRepository() {
+			return this.repository;
+		}
+
+		public void setRepository(String repository) {
+			this.repository = repository;
+		}
+
 		public VersionRange getRange() {
 			return this.range;
 		}
@@ -578,13 +608,16 @@ public class Dependency extends MetadataElement implements Describable {
 			this.compatibilityRange = compatibilityRange;
 		}
 
-		public static Mapping create(String range, String groupId, String artifactId, String version, Boolean starter) {
+		public static Mapping create(String range, String groupId, String artifactId, String version, Boolean starter,
+				String bom, String repository) {
 			Mapping mapping = new Mapping();
 			mapping.compatibilityRange = range;
 			mapping.groupId = groupId;
 			mapping.artifactId = artifactId;
 			mapping.version = version;
 			mapping.starter = starter;
+			mapping.bom = bom;
+			mapping.repository = repository;
 			return mapping;
 		}
 

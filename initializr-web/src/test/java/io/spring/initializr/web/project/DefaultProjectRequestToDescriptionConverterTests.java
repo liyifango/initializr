@@ -1,5 +1,5 @@
 /*
- * Copyright 2012-2019 the original author or authors.
+ * Copyright 2012-2020 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -30,6 +30,9 @@ import org.junit.jupiter.api.Test;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatExceptionOfType;
+import static org.mockito.BDDMockito.given;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verify;
 
 /**
  * Tests for {@link DefaultProjectRequestToDescriptionConverter}.
@@ -75,6 +78,19 @@ class DefaultProjectRequestToDescriptionConverterTests {
 	}
 
 	@Test
+	void convertShouldCallProjectRequestVersionTransformer() {
+		ProjectRequestPlatformVersionTransformer transformer = mock(ProjectRequestPlatformVersionTransformer.class);
+		Version v1Format = Version.parse("2.4.0.RELEASE");
+		given(transformer.transform(v1Format, this.metadata)).willReturn(Version.parse("2.4.0"));
+		ProjectRequest request = createProjectRequest();
+		request.setBootVersion("2.4.0.RELEASE");
+		ProjectDescription description = new DefaultProjectRequestToDescriptionConverter(transformer).convert(request,
+				this.metadata);
+		assertThat(description.getPlatformVersion()).hasToString("2.4.0");
+		verify(transformer).transform(v1Format, this.metadata);
+	}
+
+	@Test
 	void convertWhenSpringBootVersionInvalidShouldThrowException() {
 		this.metadata = InitializrMetadataTestBuilder.withDefaults()
 				.setPlatformCompatibilityRange("[2.0.0.RELEASE,2.3.0.M1)").build();
@@ -115,14 +131,14 @@ class DefaultProjectRequestToDescriptionConverterTests {
 	@Test
 	void convertWhenDependencyOutOfRangeShouldThrowException() {
 		Dependency dependency = Dependency.withId("foo");
-		dependency.setRange(new VersionRange(Version.parse("2.2.0.M1")));
+		dependency.setRange(new VersionRange(Version.parse("2.5.0.M1")));
 		InitializrMetadata metadata = InitializrMetadataTestBuilder.withDefaults().addDependencyGroup("foo", dependency)
 				.build();
 		ProjectRequest request = createProjectRequest();
 		request.setDependencies(Collections.singletonList("foo"));
 		assertThatExceptionOfType(InvalidProjectRequestException.class)
 				.isThrownBy(() -> this.converter.convert(request, metadata))
-				.withMessage("Dependency 'foo' is not compatible " + "with Spring Boot 2.1.1.RELEASE");
+				.withMessage("Dependency 'foo' is not compatible " + "with Spring Boot 2.4.1");
 	}
 
 	@Test

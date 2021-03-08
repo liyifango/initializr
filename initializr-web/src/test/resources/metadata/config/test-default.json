@@ -10,7 +10,7 @@
     "content": [
       {
         "default": false,
-        "id": "2.2.0.BUILD-SNAPSHOT",
+        "id": "2.4.0-SNAPSHOT",
         "name": "Latest SNAPSHOT"
       },
       {
@@ -20,7 +20,7 @@
       },
       {
         "default": false,
-        "id": "1.5.17.RELEASE",
+        "id": "2.2.17.RELEASE",
         "name": "1.5.17"
       }
     ],
@@ -33,7 +33,6 @@
     "artifactRepository": "https://repo.spring.io/release/",
     "fallbackApplicationName": "Application",
     "forceSsl": false,
-    "platformCompatibilityRange": null,
     "gradle": {
       "dependencyManagementPluginVersion": "1.0.0.RELEASE"
     },
@@ -57,6 +56,11 @@
         "version": null,
         "includeSpringBootBom": false
       }
+    },
+    "platform": {
+      "compatibilityRange": null,
+      "v1FormatCompatibilityRange": null,
+      "v2FormatCompatibilityRange": null
     },
     "googleAnalyticsTrackingCode": null,
     "invalidApplicationNames": [
@@ -220,7 +224,7 @@
             "name": "Biz",
             "scope": "runtime",
             "version": "1.3.5",
-            "compatibilityRange": "2.2.0.BUILD-SNAPSHOT"
+            "compatibilityRange": "2.5.0-SNAPSHOT"
           },
           {
             "starter": true,
@@ -230,7 +234,7 @@
             "name": "Bur",
             "scope": "test",
             "version": "2.1.0",
-            "compatibilityRange": "[2.1.4.RELEASE,2.2.0.BUILD-SNAPSHOT)"
+            "compatibilityRange": "[2.1.4.RELEASE,2.4.0-SNAPSHOT)"
           },
           {
             "starter": true,

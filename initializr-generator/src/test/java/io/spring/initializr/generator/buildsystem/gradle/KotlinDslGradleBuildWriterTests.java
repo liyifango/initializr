@@ -18,7 +18,9 @@ package io.spring.initializr.generator.buildsystem.gradle;
 
 import java.io.StringWriter;
 import java.util.Arrays;
+import java.util.Comparator;
 import java.util.List;
+import java.util.stream.Stream;
 
 import io.spring.initializr.generator.buildsystem.BillOfMaterials;
 import io.spring.initializr.generator.buildsystem.Dependency;
@@ -29,6 +31,9 @@ import io.spring.initializr.generator.io.IndentingWriter;
 import io.spring.initializr.generator.version.VersionProperty;
 import io.spring.initializr.generator.version.VersionReference;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.Arguments;
+import org.junit.jupiter.params.provider.MethodSource;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatIllegalStateException;
@@ -48,20 +53,31 @@ class KotlinDslGradleBuildWriterTests {
 		assertThat(lines).contains("group = \"com.example\"", "version = \"1.0.1-SNAPSHOT\"");
 	}
 
-	@Test
-	void gradleBuildWithSourceCompatibility11() {
+	@ParameterizedTest
+	@MethodSource("sourceCompatibilityParameters")
+	void gradleBuildWithSourceCompatibility15(String sourceCompatibility, String javaVersionConstant) {
 		GradleBuild build = new GradleBuild();
-		build.settings().sourceCompatibility("11");
+		build.settings().sourceCompatibility(sourceCompatibility);
 		List<String> lines = generateBuild(build);
-		assertThat(lines).contains("java.sourceCompatibility = JavaVersion.VERSION_11");
+		assertThat(lines).contains("java.sourceCompatibility = " + javaVersionConstant);
 	}
 
-	@Test
-	void gradleBuildWithSourceCompatibility1Dot8() {
-		GradleBuild build = new GradleBuild();
-		build.settings().sourceCompatibility("1.8");
-		List<String> lines = generateBuild(build);
-		assertThat(lines).contains("java.sourceCompatibility = JavaVersion.VERSION_1_8");
+	static Stream<Arguments> sourceCompatibilityParameters() {
+		return Stream.of(Arguments.arguments("1.8", "JavaVersion.VERSION_1_8"),
+				Arguments.arguments("8", "JavaVersion.VERSION_1_8"),
+				Arguments.arguments("1.9", "JavaVersion.VERSION_1_9"),
+				Arguments.arguments("9", "JavaVersion.VERSION_1_9"),
+				Arguments.arguments("1.10", "JavaVersion.VERSION_1_10"),
+				Arguments.arguments("10", "JavaVersion.VERSION_1_10"),
+				Arguments.arguments(null, "JavaVersion.VERSION_11"),
+				Arguments.arguments("11", "JavaVersion.VERSION_11"),
+				Arguments.arguments("12", "JavaVersion.VERSION_12"),
+				Arguments.arguments("13", "JavaVersion.VERSION_13"),
+				Arguments.arguments("14", "JavaVersion.VERSION_14"),
+				Arguments.arguments("15", "JavaVersion.VERSION_15"),
+				Arguments.arguments("16", "JavaVersion.VERSION_16"),
+				Arguments.arguments("17", "JavaVersion.VERSION_17"),
+				Arguments.arguments("18", "JavaVersion.VERSION_HIGHER"));
 	}
 
 	@Test
@@ -425,6 +441,41 @@ class KotlinDslGradleBuildWriterTests {
 	}
 
 	@Test
+	void gradleBuildWithOrderedDependencies() {
+		GradleBuild build = new GradleBuild();
+		build.dependencies().add("beta", Dependency.withCoordinates("com.example", "beta"));
+		build.dependencies().add("alpha", Dependency.withCoordinates("com.example", "alpha"));
+		build.dependencies().add("web",
+				Dependency.withCoordinates("org.springframework.boot", "spring-boot-starter-web"));
+		build.dependencies().add("root", Dependency.withCoordinates("org.springframework.boot", "spring-boot-starter"));
+		List<String> lines = generateBuild(build);
+		assertThat(lines).containsSequence("    implementation(\"org.springframework.boot:spring-boot-starter\")",
+				"    implementation(\"org.springframework.boot:spring-boot-starter-web\")",
+				"    implementation(\"com.example:alpha\")", "    implementation(\"com.example:beta\")");
+	}
+
+	@Test
+	void gradleBuildWithOrderedDependenciesAndCustomComparator() {
+		GradleBuild build = new GradleBuild();
+		build.dependencies().add("beta", Dependency.withCoordinates("com.example", "beta"));
+		build.dependencies().add("alpha", Dependency.withCoordinates("com.example", "alpha"));
+		build.dependencies().add("web",
+				Dependency.withCoordinates("org.springframework.boot", "spring-boot-starter-web"));
+		build.dependencies().add("root", Dependency.withCoordinates("org.springframework.boot", "spring-boot-starter"));
+		KotlinDslGradleBuildWriter writer = new KotlinDslGradleBuildWriter() {
+			@Override
+			protected Comparator<Dependency> getDependencyComparator() {
+				return Comparator.comparing(Dependency::getArtifactId);
+			}
+		};
+		List<String> lines = generateBuild(writer, build);
+		assertThat(lines).containsSequence("    implementation(\"com.example:alpha\")",
+				"    implementation(\"com.example:beta\")",
+				"    implementation(\"org.springframework.boot:spring-boot-starter\")",
+				"    implementation(\"org.springframework.boot:spring-boot-starter-web\")");
+	}
+
+	@Test
 	void gradleBuildWithBom() {
 		GradleBuild build = new GradleBuild();
 		build.boms().add("test", BillOfMaterials.withCoordinates("com.example", "my-project-dependencies")
@@ -456,7 +507,10 @@ class KotlinDslGradleBuildWriterTests {
 	}
 
 	private List<String> generateBuild(GradleBuild build) {
-		GradleBuildWriter writer = new KotlinDslGradleBuildWriter();
+		return generateBuild(new KotlinDslGradleBuildWriter(), build);
+	}
+
+	private List<String> generateBuild(KotlinDslGradleBuildWriter writer, GradleBuild build) {
 		StringWriter out = new StringWriter();
 		writer.writeTo(new IndentingWriter(out), build);
 		String[] lines = out.toString().split("\\r?\\n");
